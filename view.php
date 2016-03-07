@@ -33,15 +33,55 @@ $pageparams->studentid  = optional_param('studentid', null, PARAM_INT);
 $pageparams->mode       = optional_param('mode', att_view_page_params::MODE_THIS_COURSE, PARAM_INT);
 $pageparams->view       = optional_param('view', null, PARAM_INT);
 $pageparams->curdate    = optional_param('curdate', null, PARAM_INT);
+$session                = optional_param('session', null, PARAM_INT);
+$word                   = optional_param('word', null, PARAM_TEXT);
 
 $cm             = get_coursemodule_from_id('attendance', $id, 0, false, MUST_EXIST);
 $course         = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
-$attendance    = $DB->get_record('attendance', array('id' => $cm->instance), '*', MUST_EXIST);
+$attendance     = $DB->get_record('attendance', array('id' => $cm->instance), '*', MUST_EXIST);
 
 require_login($course, true, $cm);
 
 $pageparams->init($cm);
 $att = new attendance($attendance, $cm, $course, $PAGE->context, $pageparams);
+
+/*
+* Submit new session
+*/
+//---E.Rasvet code start-----//
+if (!empty($word)){
+    $add = new stdClass;
+    $add->offcampus = 0;
+  
+    $configIPrange = $attendance->ips;
+    if (!empty($configIPrange)) {
+      $userIP = attendance_ip_detect();
+      if (!attendance_checkip($configIPrange, $userIP)) 
+        $add->offcampus = 1;
+    }
+    
+    if ($sess = $att->get_session_byid($session)) {
+      $status = att_get_statuse($attendance->id, 'P');
+      
+      if (!empty($sess->late) && (($sess->sessdate + ($sess->late*60)) < time()))
+        $status = att_get_statuse($attendance->id, 'L');
+    }
+    
+    $add->sessid = $session;
+    $add->status = $status->id;
+    
+    if (!$att->check_session_keyword($session, $word)) {
+        echo $OUTPUT->header();
+        echo $OUTPUT->heading(get_string('attendanceforthecourse', 'attendance').' :: ' .$course->fullname);
+        echo $OUTPUT->confirm("Incorrect WORD", '/mod/attendance/view.php?id='.$cm->id, '/mod/attendance/view.php?id='.$cm->id);
+        echo $OUTPUT->footer();
+        die();
+    }
+    
+    $success = $att->take_from_student($add);
+}
+//---E.Rasvet code end-----//
+
 
 // Not specified studentid for displaying attendance?
 // Redirect to appropriate page if can.
@@ -73,6 +113,8 @@ if (isset($pageparams->studentid) && $USER->id != $pageparams->studentid) {
 }
 
 $userdata = new attendance_user_data($att, $userid);
+$userdata->attendanceID = $attendance->id;
+$userdata->pageID = $id;
 
 echo $output->header();
 

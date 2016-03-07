@@ -218,6 +218,9 @@ function construct_sessions_data_for_add($formdata) {
                     $sess->duration = $duration;
                     $sess->descriptionitemid = $formdata->sdescription['itemid'];
                     $sess->description = $formdata->sdescription['text'];
+                    $sess->keyw = $formdata->keyw;  //---E.Rasvet line---
+                    $sess->late = $formdata->late;  //---E.Rasvet line---
+                    $sess->keyword = $formdata->keyword;  //---E.Rasvet line---
                     $sess->descriptionformat = $formdata->sdescription['format'];
                     $sess->timemodified = $now;
                     if (isset($formdata->studentscanmark)) { // Students will be able to mark their own attendance.
@@ -238,6 +241,9 @@ function construct_sessions_data_for_add($formdata) {
         $sess->duration = $duration;
         $sess->descriptionitemid = $formdata->sdescription['itemid'];
         $sess->description = $formdata->sdescription['text'];
+        $sess->keyw = $formdata->keyw;   //---E.Rasvet line---
+        $sess->late = $formdata->late;   //---E.Rasvet line---
+        $sess->keyword = $formdata->keyword;   //---E.Rasvet line---
         $sess->descriptionformat = $formdata->sdescription['format'];
         $sess->timemodified = $now;
         if (isset($formdata->studentscanmark)) { // Students will be able to mark their own attendance.

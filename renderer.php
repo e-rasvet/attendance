@@ -67,7 +67,7 @@ class mod_attendance_renderer extends plugin_renderer_base {
 
         $filtertable->data[0][] = $this->render_view_controls($fcontrols);
 
-        $o = html_writer::table($filtertable);
+        $o = $o . html_writer::table($filtertable);
         $o = $this->output->container($o, 'attfiltercontrols attwidth');
 
         return $o;
@@ -208,6 +208,8 @@ class mod_attendance_renderer extends plugin_renderer_base {
     }
 
     protected function render_sess_manage_table(attendance_manage_data $sessdata) {
+        global $att;
+        
         $this->page->requires->js_init_call('M.mod_attendance.init_manage');
 
         $table = new html_table();
@@ -218,11 +220,12 @@ class mod_attendance_renderer extends plugin_renderer_base {
                 get_string('date'),
                 get_string('time'),
                 get_string('description', 'attendance'),
+                get_string('keyword', 'attendance'),
                 get_string('actions'),
                 html_writer::checkbox('cb_selector', 0, false, '', array('id' => 'cb_selector'))
             );
-        $table->align = array('', '', '', '', 'center', 'center', 'center');
-        $table->size = array('1px', '', '1px', '1px', '*', '1px', '1px');
+        $table->align = array('', '', '', '', 'center', 'center', 'center', 'center');
+        $table->size = array('1px', '', '1px', '1px', '*', '1px', '1px', '1px');
 
         $i = 0;
         foreach ($sessdata->sessions as $key => $sess) {
@@ -236,6 +239,15 @@ class mod_attendance_renderer extends plugin_renderer_base {
             $table->data[$sess->id][] = $dta['date'];
             $table->data[$sess->id][] = $dta['time'];
             $table->data[$sess->id][] = $sess->description;
+            
+            if ($sess->keyw == 1) {
+              if (!empty($sess->keyword))
+                $table->data[$sess->id][] = $sess->keyword;
+              else
+                $table->data[$sess->id][] = $att->keyword;
+            } else
+              $table->data[$sess->id][] = get_string('no');
+            
             $table->data[$sess->id][] = $dta['actions'];
             $table->data[$sess->id][] = html_writer::checkbox('sessid[]', $sess->id, false);
         }
@@ -338,6 +350,7 @@ class mod_attendance_renderer extends plugin_renderer_base {
         foreach($takedata->statuses as $status) {
             $statsoutput .= "$status->description = ".$sessionstats[$status->id]." <br/>";
         }
+        $statsoutput .= get_string('offcampus', 'attendance').": ".count($takedata->sessionoffcampus)." <br/>";
 
         return $controls.$table.$statsoutput;
     }
@@ -647,7 +660,35 @@ class mod_attendance_renderer extends plugin_renderer_base {
     }
 
     protected function render_attendance_user_data(attendance_user_data $userdata) {
+        global $DB, $att;
+        
         $o = $this->render_user_report_tabs($userdata);
+        
+        //---E.Rasvet code start-----//
+        if ($activeSessions = $att->get_current_sessions()){
+          while(list($k,$activeSession)=each($activeSessions)) { 
+            $show = false;
+            if ($activeSession->groupid > 0) {
+              if ($DB->get_record("groups_members", array("groupid"=>$activeSession->groupid, "userid"=>$userdata->user->id)))
+                $show = true;
+            } else 
+              $show = true;
+              
+            if ($show == true && !$DB->get_record("attendance_log", array("sessionid"=>$activeSession->id, "studentid"=>$userdata->user->id))) {
+                $o .= html_writer::start_tag("div", array("style"=>"margin: 0;background-color:#CC3333;color:#fff;padding: 0 0 0 30px;"));
+                $o .= html_writer::start_tag("form", array("method"=>"post", "action"=>"view.php?id={$userdata->pageID}"));
+                $o .= html_writer::tag("span", get_string("sessionkeyword", "attendance"));
+                $o .= html_writer::empty_tag("input", array("type"=>"text", "name"=>"word", "value"=>"", "style"=>"width:100px"));
+                $o .= html_writer::empty_tag("input", array("type"=>"submit", "name"=>"sub", "value"=>get_string("setattendance", "attendance")));
+                $o .= html_writer::empty_tag("input", array("type"=>"hidden", "name"=>"session", "value"=>$activeSession->id));
+                $o .= html_writer::end_tag('form');
+                $o .= html_writer::end_tag('div');
+                
+                break;
+            }
+          }
+        }
+        //---E.Rasvet code end-----//
 
         $table = new html_table();
 
@@ -732,7 +773,12 @@ class mod_attendance_renderer extends plugin_renderer_base {
                                                                       get_string('commonsession', 'attendance'));
             $row->cells[] = userdate($sess->sessdate, get_string('strftimedmyw', 'attendance'));
             $row->cells[] = $this->construct_time($sess->sessdate, $sess->duration);
-            $row->cells[] = $sess->description;
+            
+            if (!strstr($sess->description, "key:"))
+              $row->cells[] = $sess->description;
+            else
+              $row->cells[] = "";
+              
             if (isset($sess->statusid)) {
                 $row->cells[] = $userdata->statuses[$sess->statusid]->description;
                 $row->cells[] = $sess->remarks;
@@ -774,7 +820,7 @@ class mod_attendance_renderer extends plugin_renderer_base {
 
     protected function render_attendance_report_data(attendance_report_data $reportdata) {
         global $PAGE;
-
+        
         // Initilise Javascript used to (un)check all checkboxes.
         $this->page->requires->js_init_call('M.mod_attendance.init_manage');
 
@@ -876,9 +922,12 @@ class mod_attendance_renderer extends plugin_renderer_base {
         $statrow = new html_table_row();
         $statrow->cells[] = '';
         $statrow->cells[] = get_string('summary');
-        foreach ($reportdata->sessions as $sess) {
+        foreach ($reportdata->sessions as $sess) { 
+            $sessionstats = array();
             foreach ($reportdata->users as $user) {
                 foreach($reportdata->statuses as $status) {
+                    if(!isset($sessionstats[$status->id])) $sessionstats[$status->id] = 0;
+                    
                     if (!empty($reportdata->sessionslog[$user->id][$sess->id])) {
                         if ($reportdata->sessionslog[$user->id][$sess->id]->statusid == $status->id) $sessionstats[$status->id]++;
                     }
@@ -889,6 +938,7 @@ class mod_attendance_renderer extends plugin_renderer_base {
             foreach($reportdata->statuses as $status) {
                 $statsoutput .= "$status->description:".$sessionstats[$status->id]." <br/>";
             }
+            $statsoutput .= get_string('offcampus', 'attendance').": ".count($reportdata->sessionoffcampus[$sess->id])." <br/>";
             $statrow->cells[] = $statsoutput;
 
         }
@@ -913,6 +963,8 @@ class mod_attendance_renderer extends plugin_renderer_base {
     }
 
     protected function render_attendance_preferences_data(attendance_preferences_data $prefdata) {
+        $attendance_fixedAcronyms = array("P", "L", "A");
+        
         $this->page->requires->js('/mod/attendance/module.js');
 
         $table = new html_table();
@@ -927,10 +979,19 @@ class mod_attendance_renderer extends plugin_renderer_base {
         $i = 1;
         foreach ($prefdata->statuses as $st) {
             $table->data[$i][] = $i;
-            $table->data[$i][] = $this->construct_text_input('acronym['.$st->id.']', 2, 2, $st->acronym);
+            
+            if (!in_array($st->acronym, $attendance_fixedAcronyms))
+              $table->data[$i][] = $this->construct_text_input('acronym['.$st->id.']', 2, 2, $st->acronym);
+            else
+              $table->data[$i][] = $this->construct_text_input_noedit('acronym['.$st->id.']', 2, 2, $st->acronym);
+            
             $table->data[$i][] = $this->construct_text_input('description['.$st->id.']', 30, 30, $st->description);
             $table->data[$i][] = $this->construct_text_input('grade['.$st->id.']', 4, 4, $st->grade);
-            $table->data[$i][] = $this->construct_preferences_actions_icons($st, $prefdata);
+            
+            if (!in_array($st->acronym, $attendance_fixedAcronyms))
+              $table->data[$i][] = $this->construct_preferences_actions_icons($st, $prefdata);
+            else
+              $table->data[$i][] = $this->construct_preferences_actions_icons_nodelete($st, $prefdata);
 
             $i++;
         }
@@ -960,6 +1021,17 @@ class mod_attendance_renderer extends plugin_renderer_base {
                 'size'      => $size,
                 'maxlength' => $maxlength,
                 'value'     => $value);
+        return html_writer::empty_tag('input', $attributes);
+    }
+
+    private function construct_text_input_noedit($name, $size, $maxlength, $value='') {
+        $attributes = array(
+                'type'      => 'text',
+                'name'      => $name,
+                'size'      => $size,
+                'maxlength' => $maxlength,
+                'value'     => $value,
+                'readonly'  => 'readonly');
         return html_writer::empty_tag('input', $attributes);
     }
 
@@ -993,6 +1065,28 @@ class mod_attendance_renderer extends plugin_renderer_base {
         }
 
         return $showhideicon . $deleteicon;
+    }
+    
+    private function construct_preferences_actions_icons_nodelete($st, $prefdata) {
+        global $OUTPUT;
+
+        if ($st->visible) {
+            $params = array(
+                    'action' => att_preferences_page_params::ACTION_HIDE,
+                    'statusid' => $st->id);
+            $showhideicon = $OUTPUT->action_icon(
+                    $prefdata->url($params),
+                    new pix_icon("t/hide", get_string('hide')));
+        } else {
+            $params = array(
+                    'action' => att_preferences_page_params::ACTION_SHOW,
+                    'statusid' => $st->id);
+            $showhideicon = $OUTPUT->action_icon(
+                    $prefdata->url($params),
+                    new pix_icon("t/show", get_string('show')));
+        }
+
+        return $showhideicon;
     }
 
     private function construct_preferences_button($text, $action) {

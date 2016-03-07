@@ -52,7 +52,7 @@ switch ($att->pageparams->action) {
     case att_preferences_page_params::ACTION_ADD:
         $newacronym         = optional_param('newacronym', null, PARAM_TEXT);
         $newdescription     = optional_param('newdescription', null, PARAM_TEXT);
-        $newgrade           = optional_param('newgrade', 0, PARAM_INT);
+        $newgrade           = optional_param('newgrade', 0, PARAM_FLOAT);
 
         $att->add_status($newacronym, $newdescription, $newgrade);
         break;
@@ -88,7 +88,7 @@ switch ($att->pageparams->action) {
     case att_preferences_page_params::ACTION_SAVE:
         $acronym        = required_param_array('acronym', PARAM_MULTILANG);
         $description    = required_param_array('description', PARAM_MULTILANG);
-        $grade          = required_param_array('grade', PARAM_INT);
+        $grade          = required_param_array('grade', PARAM_FLOAT);
 
         foreach ($acronym as $id => $v) {
             $att->update_status($id, $acronym[$id], $description[$id], $grade[$id], null);

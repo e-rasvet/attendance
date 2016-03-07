@@ -22,6 +22,9 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+
+
+
 /**
  * Returns the information if the module supports a feature
  *
@@ -258,6 +261,62 @@ function attendance_print_recent_activity($course, $isteacher, $timestart) {
 }
 
 function attendance_cron () {
+    global $DB, $CFG;
+
+    require_once($CFG->dirroot.'/mod/attendance/locallib.php');
+    
+    if ($needtocloseSessions = $DB->get_records_sql("SELECT * FROM {attendance_sessions} WHERE sessdate+duration < :time AND duration > 0 AND finished = 0", array("time" => time()))){
+      while(list($k,$sess) = each($needtocloseSessions)){
+        $cm             = get_coursemodule_from_instance('attendance', $sess->attendanceid);
+        $course         = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
+        $att            = $DB->get_record('attendance', array('id' => $cm->instance), '*', MUST_EXIST);
+        
+        $pageparams = new att_take_page_params();
+        $pageparams->sessionid  = $sess->id;
+        $pageparams->grouptype  = $sess->groupid;
+        $pageparams->page       = 1;
+        $pageparams->perpage    = 1000;
+        $pageparams->group = groups_get_activity_group($cm, true);
+        $pageparams->init($course->id);
+        $pageparams->context = get_context_instance(CONTEXT_MODULE, $cm->id);
+        
+        $att = new attendance($att, $cm, $course, $pageparams->context, $pageparams);
+        
+        if ($att->pageparams->grouptype)
+            $users = $att->get_users($att->pageparams->grouptype, 0);
+        else 
+            $users = $att->get_users($att->pageparams->group, 0);
+        
+        
+        $sessionlog = $att->get_session_log($att->pageparams->sessionid);
+        
+        $status = att_get_statuse($cm->instance, 'A');
+ 
+        $add                    = new stdClass;
+        $add->sessionid         = $sess->id;
+        $add->grouptype         = $sess->groupid;
+        $add->id                = $cm->id;
+        $add->noredirect        = true;
+            
+        foreach($users as $us) {
+          if (!isset($sessionlog[$us->id])){
+            $add->{"user".$us->id} = $status->id;
+            $add->{"remarks".$us->id} = "";
+          }
+        }
+        
+        
+        $success = $att->take_from_form_data($add);
+        
+        $add = new stdClass;
+        $add->id = $sess->id;
+        $add->finished = 1;
+        
+        $DB->update_record("attendance_sessions", $add);
+        
+      }
+    }
+
     return true;
 }
 
@@ -405,4 +464,103 @@ function attendance_pluginfile($course, $cm, $context, $filearea, $args, $forced
         return false;
     }
     send_stored_file($file, 0, 0, true);
+}
+
+
+function attendance_checkip($network, $ip){
+  if (strstr($network, ",")){
+    $list = explode(",", $network);
+    $inrange = false;
+    foreach($list as $l)
+      if (attendance_netMatch($l, $ip))
+        $inrange = true;
+    
+    return $inrange;
+  } else
+    return attendance_netMatch($network, $ip);
+}
+
+
+function attendance_netMatch($network, $ip) {
+    $network=trim($network);
+    $orig_network = $network;
+    $ip = trim($ip);
+    if ($ip == $network) {
+        return TRUE;
+    }
+    $network = str_replace(' ', '', $network);
+    if (strpos($network, '*') !== FALSE) {
+        if (strpos($network, '/') !== FALSE) {
+            $asParts = explode('/', $network);
+            $network = @ $asParts[0];
+        }
+        $nCount = substr_count($network, '*');
+        $network = str_replace('*', '0', $network);
+        if ($nCount == 1) {
+            $network .= '/24';
+        } else if ($nCount == 2) {
+            $network .= '/16';
+        } else if ($nCount == 3) {
+            $network .= '/8';
+        } else if ($nCount > 3) {
+            return TRUE; // if *.*.*.*, then all, so matched
+        }
+    }
+
+    //echo "from original network($orig_network), used network ($network) for ($ip)\n";
+
+    $d = strpos($network, '-');
+    if ($d === FALSE) {
+        if (strpos($network, '/')) {
+            $ip_arr = explode('/', $network);
+            if (!preg_match("@\d*\.\d*\.\d*\.\d*@", $ip_arr[0], $matches)){
+                $ip_arr[0].=".0";    // Alternate form 194.1.4/24
+            }
+            $network_long = ip2long($ip_arr[0]);
+            $x = ip2long($ip_arr[1]);
+            $mask = long2ip($x) == $ip_arr[1] ? $x : (0xffffffff << (32 - $ip_arr[1]));
+            $ip_long = ip2long($ip);
+            return ($ip_long & $mask) == ($network_long & $mask);
+        } else {
+            if ($network == $ip)
+                return true;
+            else
+                return false;
+        }
+    } else {
+        $from = trim(ip2long(substr($network, 0, $d)));
+        $to = trim(ip2long(substr($network, $d+1)));
+        $ip = ip2long($ip);
+        return ($ip>=$from and $ip<=$to);
+    }
+}
+
+
+function attendance_ip_detect() {
+  if (isset($_SERVER)) {
+    if(isset($_SERVER['HTTP_CLIENT_IP'])){
+      $ip = $_SERVER['HTTP_CLIENT_IP'];
+    } elseif(isset($_SERVER['HTTP_FORWARDED_FOR'])){
+      $ip = $_SERVER['HTTP_FORWARDED_FOR'];
+    } elseif(isset($_SERVER['HTTP_X_FORWARDED_FOR'])){
+      $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+    } elseif(isset($_SERVER['REMOTE_ADDR'])){
+      $ip = $_SERVER['REMOTE_ADDR'];
+    } else {
+      $ip = "100.100.100.100";
+    }
+  } else {
+    if (getenv( 'HTTP_CLIENT_IP')) {
+      $ip = getenv( 'HTTP_CLIENT_IP' );
+    } elseif (getenv('HTTP_FORWARDED_FOR')) {
+      $ip = getenv('HTTP_FORWARDED_FOR');
+    } elseif (getenv('HTTP_X_FORWARDED_FOR')) {
+      $ip = getenv('HTTP_X_FORWARDED_FOR');
+    } elseif (getenv('REMOTE_ADDR')) {
+      $ip = getenv('REMOTE_ADDR');
+    } else {
+      $ip = "100.100.100.100";
+    }
+  }
+  return $ip;
 }

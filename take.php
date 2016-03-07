@@ -75,3 +75,6 @@ echo $output->render($tabs);
 echo $output->render($sesstable);
 
 echo $output->footer();
+
+
+//attendance_cron ();

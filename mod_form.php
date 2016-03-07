@@ -42,6 +42,8 @@ class mod_attendance_mod_form extends moodleform_mod {
      * @return void
      */
     public function definition() {
+        global $DB;
+        
         $mform    =& $this->_form;
 
         $mform->addElement('header', 'general', get_string('general', 'form'));
@@ -53,6 +55,23 @@ class mod_attendance_mod_form extends moodleform_mod {
 
         $mform->addElement('modgrade', 'grade', get_string('grade'));
         $mform->setDefault('grade', 100);
+        
+        $mform->addElement('text', 'keyword', get_string('keyword', 'attendance'), array('size'=>'16'));
+        
+        //$mform->addElement('text', 'ips', get_string('ips_title', 'attendance'), array('size'=>'64'));
+        //$mform->setType('ips', PARAM_TEXT);
+        //$mform->addRule('ips', null, 'required', null, 'client');
+        
+        $options = array(0=> "No need");
+        
+        if ($data = $DB->get_records("attendance_ips", array(), "id")){ // 
+          foreach($data as $k => $v){
+            $options[$v->ip] = $v->location;
+          }
+        }
+        
+        $mform->addElement('select', 'ips', get_string('ips_title', 'attendance'), $options);
+        //$mform->setDefault('ips', $config->numbering);
 
         $this->standard_coursemodule_elements(true);
         $this->add_action_buttons();

@@ -45,6 +45,10 @@ class user_sessions_cells_generator {
 
     public function get_cells($remarks = false) {
         $this->init_cells();
+        //$absent = att_get_statuse($this->reportdata->cm->instance, 'A');
+        //$absent = next($statuses);
+        //$absent = next($statuses);
+        
         foreach ($this->reportdata->sessions as $sess) {
             if (array_key_exists($sess->id, $this->reportdata->sessionslog[$this->user->id])) {
                 $statusid = $this->reportdata->sessionslog[$this->user->id][$sess->id]->statusid;
@@ -224,14 +228,20 @@ function construct_user_data_stat($stat, $statuses, $gradable, $grade, $maxgrade
     $row->cells[] = get_string('sessionscompleted', 'attendance').':';
     $row->cells[] = $stat['completed'];
     $stattable->data[] = $row;
-
+    
     foreach ($statuses as $st) {
         $row = new html_table_row();
+        
         $row->cells[] = $st->description . ':';
         $row->cells[] = array_key_exists($st->id, $stat['statuses']) ? $stat['statuses'][$st->id]->stcnt : 0;
 
         $stattable->data[] = $row;
     }
+    
+    $row = new html_table_row();
+    $row->cells[] = get_string('offcampus', 'attendance') . ':';
+    $row->cells[] = $stat['offcampus'];
+    $stattable->data[] = $row;
 
     if ($gradable) {
         $row = new html_table_row();
@@ -250,6 +260,8 @@ function construct_user_data_stat($stat, $statuses, $gradable, $grade, $maxgrade
         $row->cells[] = sprintf("%0.{$decimalpoints}f", $percent);
         $stattable->data[] = $row;
     }
+    
+    
 
     return html_writer::table($stattable);
 }
@@ -260,6 +272,7 @@ function construct_full_user_stat_html_table($attendance, $course, $user, $cours
     $statuses = att_get_statuses($attendance->id);
     $userstatusesstat = att_get_user_statuses_stat($attendance->id, $course->startdate, $user->id, $coursemodule);
     $stat['completed'] = att_get_user_taken_sessions_count($attendance->id, $course->startdate, $user->id, $coursemodule);
+    $stat['offcampus'] = att_get_user_offcampus_sessions_count($attendance->id, $course->startdate, $user->id, $coursemodule);
     $stat['statuses'] = $userstatusesstat;
     if ($gradeable) {
         $grade = att_get_user_grade($userstatusesstat, $statuses);

@@ -29,7 +29,7 @@ function xmldb_attendance_install() {
     global $DB;
 
     $result = true;
-    $arr = array('P' => 2, 'A' => 0, 'L' => 1, 'E' => 1);
+    $arr = array('P' => 2, 'L' => 1, 'A' => 0,'E' => 1);
     foreach ($arr as $k => $v) {
         $rec = new stdClass;
         $rec->attendanceid = 0;

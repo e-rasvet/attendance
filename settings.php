@@ -41,4 +41,13 @@ if ($ADMIN->fulltree) {
 
     $settings->add(new admin_setting_configselect('attendance/resultsperpage',
         get_string('resultsperpage', 'attendance'), get_string('resultsperpage_desc', 'attendance'), 25, $options));
+
+    //$settings->add(new admin_setting_configtext('attendance/ips',
+    //    get_string('ips_title', 'attendance'), get_string('ips_descr', 'attendance'), '127.0.0.1', PARAM_TEXT, 35));
+    
+
+    $str = ' <iframe src="'.$CFG->wwwroot.'/mod/attendance/saveips.php" width="750" height="50" style="border:0px">No iFrames</iframe>';
+
+    $settings->add(new admin_setting_heading('attendance_fileuploadbox', get_string('attendance_fileuploadbox', 'attendance'), $str));
+
 }

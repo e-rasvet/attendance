@@ -31,16 +31,26 @@ $id                         = required_param('id', PARAM_INT);
 $from                       = optional_param('from', null, PARAM_ALPHANUMEXT);
 $pageparams->view           = optional_param('view', null, PARAM_INT);
 $pageparams->curdate        = optional_param('curdate', null, PARAM_INT);
+$time                       = optional_param('time', null, PARAM_INT);
+$group                      = optional_param('group', null, PARAM_INT);
+$word                       = optional_param('word', null, PARAM_TEXT);
 $pageparams->perpage        = get_config('attendance', 'resultsperpage');
+
 
 $cm             = get_coursemodule_from_id('attendance', $id, 0, false, MUST_EXIST);
 $course         = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
 $att            = $DB->get_record('attendance', array('id' => $cm->instance), '*', MUST_EXIST);
 
+/*
+* Submit new session
+*/
+
+
 require_login($course, true, $cm);
 
 $pageparams->init($cm);
 $att = new attendance($att, $cm, $course, $PAGE->context, $pageparams);
+$att->groupID = $group;
 if (!$att->perm->can_manage() && !$att->perm->can_take() && !$att->perm->can_change()) {
     redirect($att->url_view());
 }
@@ -74,6 +84,7 @@ $output = $PAGE->get_renderer('mod_attendance');
 $tabs = new attendance_tabs($att, attendance_tabs::TAB_SESSIONS);
 $filtercontrols = new attendance_filter_controls($att);
 $sesstable = new attendance_manage_data($att);
+
 
 // Output starts here.
 
