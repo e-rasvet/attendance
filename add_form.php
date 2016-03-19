@@ -111,7 +111,7 @@ class mod_attendance_add_form extends moodleform {
         $mform->addElement('checkbox', 'keyw', '', get_string('usekeyword','attendance')); //---E.Rasvet---new line
         $mform->addHelpButton('keyw', 'keyw', 'attendance');
         
-        $mform->addElement('text', 'keyword', get_string('keyword','attendance'), array('size'=>'16')); //---E.Rasvet---new line
+        $mform->addElement('text', 'keyword', get_string('keyword','attendance'), array('size'=>'45')); //---E.Rasvet---new line
 
 
         $mform->addElement('date_time_selector', 'sessiondate', get_string('sessiondate', 'attendance'));
